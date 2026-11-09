@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#06071a">
+<title>Game Night Camera</title>
+<style>
+  :root { --bg:#06071a; --panel:#11143a; --text:#eef3ff; --muted:#9aa6d6; --cyan:#2ef2ff; --pink:#ff3ec9; --lime:#7bff4a; --red:#ff4f4f; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom)); }
+  .screen.on { display: flex; }
+  h1 { margin: 6px 0 4px; font-size: 30px; letter-spacing: 2px; }
+  h1 span { color: var(--pink); }
+  p { margin: 6px 0; color: var(--muted); }
+  .center { margin: auto 0; text-align: center; }
+  input.code { width: 100%; max-width: 340px; padding: 14px; margin: 18px auto 8px; display: block; text-align: center; font: 700 38px/1 system-ui, sans-serif;
+               letter-spacing: 12px; text-transform: uppercase; color: var(--text); background: var(--panel); border: 3px solid #2a2f6e; border-radius: 16px; outline: none; }
+  input.code:focus { border-color: var(--cyan); }
+  button { font: 700 18px system-ui, sans-serif; color: #06071a; background: var(--cyan); border: 0; border-radius: 999px; padding: 14px 26px; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--text); border: 2px solid #3a4180; }
+  button.pink { background: var(--pink); }
+  button:disabled { opacity: .4; }
+  .msg { min-height: 24px; margin-top: 10px; }
+  .msg.err { color: var(--red); }
+  .msg.ok { color: var(--lime); }
+
+  /* camera */
+  #stage { position: relative; flex: 1; margin: 10px 0; border-radius: 18px; overflow: hidden; background: #000; }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; }
+  video { display: none; }
+  .badge { position: absolute; top: 10px; left: 10px; padding: 6px 12px; border-radius: 999px; background: rgba(6,7,26,.75); font-size: 14px; font-weight: 700; }
+  .badge.r { left: auto; right: 10px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--red); vertical-align: 0; }
+  .dot.on { background: var(--lime); }
+  #big { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: rgba(6,7,26,.55); padding: 20px; }
+  #big.on { display: flex; }
+  #big b { font-size: 34px; line-height: 1.2; }
+  #big i { font-style: normal; font-size: 90px; font-weight: 900; color: var(--cyan); }
+  .chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .chip { padding: 8px 14px; border-radius: 12px; background: var(--panel); font-weight: 800; font-size: 16px; min-width: 64px; text-align: center; transition: background .1s; }
+  .chip.on { background: var(--cyan); color: #06071a; }
+  .chip.jump.on { background: var(--lime); }
+  .chip.duck.on { background: var(--pink); }
+  .row { display: flex; gap: 10px; margin-top: 10px; }
+  .row button { flex: 1; padding: 13px 8px; }
+  #you { display: none; padding: 8px 14px; border-radius: 12px; font-weight: 800; text-align: center; margin-top: 8px; color: #06071a; }
+  ol { color: var(--muted); padding-left: 22px; margin: 8px 0; }
+  ol li { margin: 4px 0; }
+  .small { font-size: 13px; color: var(--muted); text-align: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- 1. Room code -->
+<section id="s-join" class="screen on">
+  <div class="center">
+    <h1>GAME <span>NIGHT</span></h1>
+    <p>Enter the room code shown on the TV</p>
+    <input id="code" class="code" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE">
+    <button id="go">Connect</button>
+    <div id="joinMsg" class="msg"></div>
+  </div>
+  <p class="small">Your camera video stays on this phone. Only moves like "left" or "jump" are sent to the TV.</p>
+</section>
+
+<!-- 2. Camera + play -->
+<section id="s-cam" class="screen">
+  <div id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="view"></canvas>
+    <div class="badge"><span id="linkDot" class="dot"></span><span id="linkTxt">Connecting…</span></div>
+    <div class="badge r" id="fps"></div>
+    <div id="big"></div>
+  </div>
+  <div class="chips">
+    <div class="chip" id="c-left">◀ LEFT</div>
+    <div class="chip" id="c-mid">MIDDLE</div>
+    <div class="chip" id="c-right">RIGHT ▶</div>
+    <div class="chip jump" id="c-jump">JUMP</div>
+    <div class="chip duck" id="c-duck">DUCK</div>
+  </div>
+  <div id="you"></div>
+  <div class="row">
+    <button id="b-join" class="pink">Join / Start</button>
+    <button id="b-cal" class="ghost">Calibrate</button>
+    <button id="b-more" class="ghost">⋯</button>
+  </div>
+  <div class="row" id="more" style="display:none">
+    <button id="b-swap" class="ghost">Swap L/R</button>
+    <button id="b-sens" class="ghost">Sensitivity: normal</button>
+    <button id="b-leave" class="ghost">Leave</button>
+  </div>
+</section>
+
+<script>
+/* ---------- tiny MQTT client (same as the TV's) ---------- */
+/* A tiny MQTT 3.1.1 client over WebSocket (QoS 0 only) - just enough to pass small
+   messages between phones and the TV through a free public broker. Plain ES5. */
+var MqttLite = (function () {
+  'use strict';
+
+  var BROKERS = [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt',
+    'wss://test.mosquitto.org:8081/mqtt'
+  ];
+
+  function utf8(str) {
+    var out = [], i, c;
+    for (i = 0; i < str.length; i++) {
+      c = str.charCodeAt(i);
+      if (c >= 0xd800 && c <= 0xdbff && i + 1 < str.length) { c = 0x10000 + ((c - 0xd800) << 10) + (str.charCodeAt(++i) - 0xdc00); }
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) out.push(0xc0 | c >> 6, 0x80 | c & 63);
+      else if (c < 0x10000) out.push(0xe0 | c >> 12, 0x80 | c >> 6 & 63, 0x80 | c & 63);
+      else out.push(0xf0 | c >> 18, 0x80 | c >> 12 & 63, 0x80 | c >> 6 & 63, 0x80 | c & 63);
+    }
+    return out;
+  }
+  function fromUtf8(bytes) {
+    var s = '', i = 0, c;
+    while (i < bytes.length) {
+      c = bytes[i++];
+      if (c >= 0xf0) c = ((c & 7) << 18) | ((bytes[i++] & 63) << 12) | ((bytes[i++] & 63) << 6) | (bytes[i++] & 63);
+      else if (c >= 0xe0) c = ((c & 15) << 12) | ((bytes[i++] & 63) << 6) | (bytes[i++] & 63);
+      else if (c >= 0xc0) c = ((c & 31) << 6) | (bytes[i++] & 63);
+      if (c > 0xffff) { c -= 0x10000; s += String.fromCharCode(0xd800 + (c >> 10), 0xdc00 + (c & 1023)); }
+      else s += String.fromCharCode(c);
+    }
+    return s;
+  }
+  function str(s) { var b = utf8(s); return [b.length >> 8, b.length & 255].concat(b); }
+  function packet(type, body) {
+    var len = body.length, head = [type], d;
+    do { d = len % 128; len = Math.floor(len / 128); head.push(len > 0 ? d | 128 : d); } while (len > 0);
+    return new Uint8Array(head.concat(body));
+  }
+
+  function Client(opts) {
+    this.opts = opts || {};
+    this.brokers = this.opts.brokers || BROKERS;
+    this.brokerIdx = 0;
+    this.subs = [];
+    this.handlers = [];
+    this.connected = false;
+    this.buf = [];
+    this.pid = 1;
+    this.id = this.opts.clientId || ('gn' + Math.random().toString(36).slice(2, 12));
+    this.onStatus = this.opts.onStatus || function () {};
+    this._connect();
+  }
+
+  Client.prototype._connect = function () {
+    var self = this, url = this.brokers[this.brokerIdx % this.brokers.length];
+    var ws;
+    try { ws = new WebSocket(url, 'mqtt'); } catch (e) { return this._retry(); }
+    this.ws = ws;
+    ws.binaryType = 'arraybuffer';
+    var opened = false;
+    var giveUp = setTimeout(function () { if (!self.connected) { try { ws.close(); } catch (e) {} } }, 7000);
+    ws.onopen = function () {
+      opened = true;
+      var body = str('MQTT').concat([4, 0x02, 0, 30]).concat(str(self.id)); // v3.1.1, clean session, keepalive 30s
+      ws.send(packet(0x10, body));
+    };
+    ws.onmessage = function (ev) {
+      var bytes = new Uint8Array(ev.data);
+      for (var i = 0; i < bytes.length; i++) self.buf.push(bytes[i]);
+      self._drain();
+    };
+    ws.onclose = function () {
+      clearTimeout(giveUp);
+      clearInterval(self.ping);
+      var was = self.connected;
+      self.connected = false;
+      self.buf = [];
+      self.onStatus('offline');
+      if (!was || !opened) self.brokerIdx++;   // couldn't use this broker: try the next one
+      self._retry();
+    };
+    ws.onerror = function () {};
+    this.onStatus('connecting');
+  };
+
+  Client.prototype._retry = function () {
+    var self = this;
+    if (this.closed) return;
+    setTimeout(function () { self._connect(); }, 1500);
+  };
+
+  Client.prototype._drain = function () {
+    while (this.buf.length >= 2) {
+      var mult = 1, len = 0, i = 1, d;
+      do {
+        if (i >= this.buf.length) return;
+        d = this.buf[i++];
+        len += (d & 127) * mult;
+        mult *= 128;
+      } while (d & 128);
+      if (this.buf.length < i + len) return;
+      var type = this.buf[0] >> 4, body = this.buf.slice(i, i + len);
+      this.buf = this.buf.slice(i + len);
+      this._handle(type, body);
+    }
+  };
+
+  Client.prototype._handle = function (type, body) {
+    var self = this;
+    if (type === 2) {                       // CONNACK
+      if (body[1] !== 0) { try { this.ws.close(); } catch (e) {} return; }
+      this.connected = true;
+      this.onStatus('online');
+      this.ping = setInterval(function () { self._send(packet(0xc0, [])); }, 20000);
+      for (var s = 0; s < this.subs.length; s++) this._subscribe(this.subs[s]);
+    } else if (type === 3) {                // PUBLISH (QoS 0)
+      var tl = (body[0] << 8) | body[1];
+      var topic = fromUtf8(body.slice(2, 2 + tl));
+      var msg = fromUtf8(body.slice(2 + tl));
+      for (var h = 0; h < this.handlers.length; h++) {
+        try { this.handlers[h](topic, msg); } catch (e) {}
+      }
+    }
+  };
+
+  Client.prototype._send = function (p) {
+    if (this.ws && this.ws.readyState === 1) { try { this.ws.send(p); } catch (e) {} }
+  };
+
+  Client.prototype._subscribe = function (topic) {
+    var id = this.pid++ & 0xffff || 1;
+    this._send(packet(0x82, [id >> 8, id & 255].concat(str(topic)).concat([0])));
+  };
+
+  Client.prototype.subscribe = function (topic) {
+    this.subs.push(topic);
+    if (this.connected) this._subscribe(topic);
+  };
+
+  Client.prototype.onMessage = function (fn) { this.handlers.push(fn); };
+
+  Client.prototype.publish = function (topic, message) {
+    if (!this.connected) return false;
+    this._send(packet(0x30, str(topic).concat(utf8(message))));
+    return true;
+  };
+
+  Client.prototype.close = function () {
+    this.closed = true;
+    clearInterval(this.ping);
+    if (this.ws) { this._send(packet(0xe0, [])); try { this.ws.close(); } catch (e) {} }
+  };
+
+  return { Client: Client, BROKERS: BROKERS };
+})();
+
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+
+  // ================= Settings =================
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('gnp.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('gnp.' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const phoneId = store.get('id', null) || ('p' + Math.random().toString(36).slice(2, 10));
+  store.set('id', phoneId);
+  let swap = store.get('swap', false);
+  const SENS = [
+    { name: 'gentle', lane: 0.13, jump: 0.08, duck: 0.26 },
+    { name: 'normal', lane: 0.10, jump: 0.06, duck: 0.21 },
+    { name: 'twitchy', lane: 0.075, jump: 0.045, duck: 0.17 }
+  ];
+  let sensIdx = store.get('sens', 1);
+
+  // ================= Link to the TV =================
+  let mq = null, room = null;
+  function connect(code) {
+    room = code;
+    const opts = { onStatus: s => linkStatus(s) };
+    const q = new URLSearchParams(location.search);
+    if (q.get('broker')) opts.brokers = [q.get('broker')];
+    mq = new MqttLite.Client(opts);
+    mq.subscribe('gamenight/v1/' + room + '/down/' + phoneId);
+    mq.onMessage((t, raw) => {
+      let m; try { m = JSON.parse(raw); } catch (e) { return; }
+      if (m.t === 'welcome') { tvSeen = true; linkStatus('online'); }
+      if (m.t === 'joined') {
+        const y = $('you');
+        y.style.display = 'block'; y.style.background = m.color; y.textContent = 'You are ' + m.name;
+        vibrate(60);
+      }
+      if (m.t === 'left') $('you').style.display = 'none';
+    });
+    setInterval(() => send({ t: 'ping' }), 2000);
+    setTimeout(() => send({ t: 'hello' }), 600);
+  }
+  let tvSeen = false;
+  function linkStatus(s) {
+    const on = s === 'online';
+    $('linkDot').className = 'dot' + (on && tvSeen ? ' on' : '');
+    $('linkTxt').textContent = !on ? 'Connecting…' : tvSeen ? 'TV ' + room : 'Waiting for TV ' + room + '…';
+    if (on && !tvSeen) send({ t: 'hello' });
+  }
+  function send(m) { if (mq) mq.publish('gamenight/v1/' + room + '/up/' + phoneId, JSON.stringify(m)); }
+  function vibrate(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
+
+  // ================= Screens =================
+  function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+  function big(html) { const b = $('big'); b.innerHTML = html || ''; b.classList.toggle('on', !!html); }
+
+  const params = new URLSearchParams(location.search);
+  $('code').value = (params.get('room') || store.get('room', '')).toUpperCase();
+  $('code').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); });
+  $('go').onclick = async () => {
+    const code = $('code').value.trim().toUpperCase();
+    if (!/^[A-Z]{5}$/.test(code)) { msg('Room codes are 5 letters.', 'err'); return; }
+    store.set('room', code);
+    msg('Starting camera…');
+    try { await startCamera(); }
+    catch (e) {
+      msg(location.protocol !== 'https:' && location.hostname !== 'localhost'
+        ? 'The camera needs a secure (https) page.' : 'Camera blocked. Allow camera access for this page and try again.', 'err');
+      return;
+    }
+    connect(code);
+    show('s-cam');
+    keepAwake();
+    big('<b>Lean your phone against something<br>about 2–3 metres away, facing you.</b><p>Your whole body should fit in the picture.<br>Then tap <b>Calibrate</b>.</p>');
+  };
+  function msg(t, kind) { const m = $('joinMsg'); m.textContent = t; m.className = 'msg ' + (kind || ''); }
+
+  async function keepAwake() {
+    try { if ('wakeLock' in navigator) { await navigator.wakeLock.request('screen'); } } catch (e) {}
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); }, { once: true });
+  }
+
+  // ================= Camera =================
+  const video = $('video');
+  async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } }, audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    requestAnimationFrame(loop);
+  }
+
+  // ================= Body tracking (background subtraction) =================
+  const W = 96, H = 72, N = W * H;
+  const work = document.createElement('canvas'); work.width = W; work.height = H;
+  const wctx = work.getContext('2d', { willReadFrequently: true });
+  const maskCanvas = document.createElement('canvas'); maskCanvas.width = W; maskCanvas.height = H;
+  const mctx = maskCanvas.getContext('2d');
+  const maskImg = mctx.createImageData(W, H);
+  const bg = new Float32Array(N * 3);
+  const raw = new Uint8Array(N), mask = new Uint8Array(N);
+  let haveBg = false, thresh = 70;
+  let base = null;            // standing pose: { cx, cy, top, bot, h }
+  let mode = 'idle';          // idle | bg | pose | live
+  let acc = null, accN = 0, prevFrame = null, noiseSum = 0, noiseN = 0;
+  const st = { lane: 0, jump: false, duck: false, hands: 0, seen: false, frac: 0, cx: 0, cy: 0, top: 0, bot: 0 };
+  let jumpArmed = true, lastJumpAt = 0, handsSince = 0, lastHandsAt = 0, frames = 0, fpsT = performance.now();
+
+  function grab() {
+    wctx.drawImage(video, 0, 0, W, H);
+    return wctx.getImageData(0, 0, W, H).data;
+  }
+
+  function measure(px) {
+    let n = 0;
+    for (let i = 0, j = 0; i < N; i++, j += 4) {
+      const d = Math.abs(px[j] - bg[i * 3]) + Math.abs(px[j + 1] - bg[i * 3 + 1]) + Math.abs(px[j + 2] - bg[i * 3 + 2]);
+      raw[i] = d > thresh ? 1 : 0;
+    }
+    // clean up speckles: keep a pixel only if at least 2 of its 4 neighbours agree
+    let sx = 0, sy = 0;
+    const rows = new Uint16Array(H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      let on = 0;
+      if (raw[i]) {
+        const nb = (x > 0 && raw[i - 1]) + (x < W - 1 && raw[i + 1]) + (y > 0 && raw[i - W]) + (y < H - 1 && raw[i + W]);
+        on = nb >= 2 ? 1 : 0;
+      }
+      mask[i] = on;
+      if (on) { n++; sx += x; sy += y; rows[y]++; }
+    }
+    const frac = n / N;
+    if (n < N * 0.015) return { seen: false, frac };
+    // top / bottom = 3rd and 97th percentile rows of the silhouette
+    let c = 0, top = 0, bot = H - 1;
+    for (let y = 0; y < H; y++) { c += rows[y]; if (c >= n * 0.03) { top = y; break; } }
+    c = 0;
+    for (let y = H - 1; y >= 0; y--) { c += rows[y]; if (c >= n * 0.03) { bot = y; break; } }
+    return { seen: true, frac, cx: sx / n / W, cy: sy / n / H, top: top / H, bot: bot / H };
+  }
+
+  function adaptBackground(px) {
+    for (let i = 0, j = 0; i < N; i++, j += 4) {
+      if (mask[i]) continue;
+      const k = i * 3;
+      bg[k] += (px[j] - bg[k]) * 0.02; bg[k + 1] += (px[j + 1] - bg[k + 1]) * 0.02; bg[k + 2] += (px[j + 2] - bg[k + 2]) * 0.02;
+    }
+  }
+
+  function decide(m, now) {
+    const s = SENS[sensIdx];
+    st.seen = m.seen;
+    if (!m.seen || !base) return;
+    Object.assign(st, { cx: m.cx, cy: m.cy, top: m.top, bot: m.bot });
+    // Lanes. Front camera: stepping to YOUR left moves you to the camera's right (bigger x).
+    let dx = m.cx - base.cx;
+    if (!swap) dx = -dx;
+    let lane = st.lane;
+    if (lane === 0) { if (dx < -s.lane) lane = -1; else if (dx > s.lane) lane = 1; }
+    else if (lane === -1) { if (dx > -s.lane * 0.6) lane = dx > s.lane ? 1 : 0; }
+    else if (lane === 1) { if (dx < s.lane * 0.6) lane = dx < -s.lane ? -1 : 0; }
+    if (lane !== st.lane) { st.lane = lane; send({ t: 'lane', v: lane }); }
+
+    const rise = (base.cy - m.cy) / base.h;      // whole body moved up = jump
+    const drop = (m.top - base.top) / base.h;    // head went down = duck
+    const reach = (base.top - m.top) / base.h;   // top went up without the body rising = hands up
+    const lift = (base.bot - m.bot) / base.h;    // feet left the floor
+    const feetVisible = base.bot < 0.96;         // if the feet are cut off, fall back to body height only
+    const jumping = feetVisible ? (lift > s.jump * 0.6 && rise > s.jump * 0.5) : rise > s.jump;
+
+    // Jump (trigger)
+    if (jumpArmed && jumping && now - lastJumpAt > 500) {
+      jumpArmed = false; lastJumpAt = now; st.jump = true;
+      send({ t: 'jump' }); vibrate(30);
+      setTimeout(() => { st.jump = false; }, 350);
+    }
+    if (!jumpArmed && !jumping && rise < s.jump * 0.4) jumpArmed = true;
+
+    // Duck (held)
+    const duck = st.duck ? drop > s.duck * 0.6 : drop > s.duck;
+    if (duck !== st.duck) { st.duck = duck; send({ t: 'duck', v: duck }); }
+
+    // Both hands up for ~0.7 s = press the join / start button
+    if (reach > 0.12 && (feetVisible ? lift < 0.03 : Math.abs(rise) < s.jump * 0.8) && !st.duck) {
+      if (!handsSince) handsSince = now;
+      st.hands = Math.min(1, (now - handsSince) / 700);
+      if (now - handsSince > 700 && now - lastHandsAt > 2500) {
+        lastHandsAt = now; handsSince = 0; st.hands = 0;
+        send({ t: 'btn', b: 'a' }); vibrate([40, 40, 40]);
+        flashBig('<b>🙌 Button pressed</b>');
+      }
+    } else { handsSince = 0; st.hands = 0; }
+
+    // Slowly follow the player's resting height (they may shuffle closer or further away)
+    if (st.lane === 0 && !st.duck && Math.abs(rise) < s.jump * 0.3 && Math.abs(drop) < 0.06) {
+      base.cy += (m.cy - base.cy) * 0.01; base.top += (m.top - base.top) * 0.01; base.bot += (m.bot - base.bot) * 0.01;
+      base.h = Math.max(0.2, base.bot - base.top);
+    }
+  }
+
+  let flashT = 0;
+  function flashBig(html) { big(html); clearTimeout(flashT); flashT = setTimeout(() => { if (mode === 'live') big(''); }, 900); }
+
+  // ================= Calibration =================
+  let calTimers = [];
+  function calibrate() {
+    calTimers.forEach(clearTimeout); calTimers = [];
+    mode = 'idle'; base = null; haveBg = false;
+    let n = 4;
+    const tick = () => {
+      big('<b>Step out of view</b><i>' + n + '</i><p>So I can learn what the room looks like</p>');
+      if (n === 1) { mode = 'bg'; acc = new Float32Array(N * 3); accN = 0; noiseSum = 0; noiseN = 0; prevFrame = null; }
+      if (n-- > 0) calTimers.push(setTimeout(tick, 1000)); else finishBg();
+    };
+    tick();
+  }
+  function finishBg() {
+    if (accN < 3) { big('<b>The camera isn\'t sending pictures.</b><p>Tap Calibrate to try again.</p>'); mode = 'idle'; return; }
+    for (let i = 0; i < bg.length; i++) bg[i] = acc[i] / accN;
+    const noise = noiseN ? noiseSum / noiseN : 10;
+    thresh = Math.max(55, Math.min(140, 40 + noise * 4));
+    haveBg = true;
+    let n = 4;
+    const tick = () => {
+      big('<b>Now stand in the middle</b><i>' + n + '</i><p>Arms down, facing the phone</p>');
+      if (n === 1) { mode = 'pose'; acc = []; }
+      if (n-- > 0) calTimers.push(setTimeout(tick, 1000)); else finishPose();
+    };
+    tick();
+  }
+  function finishPose() {
+    const good = acc.filter(m => m.seen);
+    if (good.length < 3) {
+      mode = 'idle';
+      big('<b>I couldn\'t see you</b><p>Try more light, step back so your whole body is in view, then tap Calibrate.</p>');
+      return;
+    }
+    const avg = k => good.reduce((a, m) => a + m[k], 0) / good.length;
+    base = { cx: avg('cx'), cy: avg('cy'), top: avg('top'), bot: avg('bot') };
+    base.h = Math.max(0.2, base.bot - base.top);
+    if (avg('frac') > 0.55) {
+      mode = 'idle';
+      big('<b>Too close or the room changed</b><p>Move the phone further away (or keep the background still), then Calibrate.</p>');
+      return;
+    }
+    st.lane = 0; st.duck = false; send({ t: 'lane', v: 0 }); send({ t: 'duck', v: false });
+    mode = 'live';
+    flashBig('<b>Ready! 🎮</b><p>Step sideways, jump and squat.<br>Raise both hands to press Join / Start.</p>');
+    calTimers.push(setTimeout(() => { if (mode === 'live') big(''); }, 2500));
+  }
+
+  // ================= Frame loop + drawing =================
+  const view = $('view'), vctx = view.getContext('2d');
+  let lastProc = 0;
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (video.readyState < 2) return;
+    if (now - lastProc < 45) return;        // ~20 checks per second is plenty
+    lastProc = now;
+    const px = grab();
+    frames++;
+    if (now - fpsT > 1000) { $('fps').textContent = frames + ' fps'; frames = 0; fpsT = now; }
+
+    if (mode === 'bg') {
+      for (let i = 0, j = 0; i < N; i++, j += 4) { acc[i * 3] += px[j]; acc[i * 3 + 1] += px[j + 1]; acc[i * 3 + 2] += px[j + 2]; }
+      if (prevFrame) {
+        let d = 0; for (let j = 0; j < px.length; j += 16) d += Math.abs(px[j] - prevFrame[j]) + Math.abs(px[j + 1] - prevFrame[j + 1]) + Math.abs(px[j + 2] - prevFrame[j + 2]);
+        noiseSum += d / (px.length / 16); noiseN++;
+      }
+      prevFrame = px.slice ? px.slice() : new Uint8ClampedArray(px);
+      accN++;
+    } else if (haveBg) {
+      const m = measure(px);
+      if (mode === 'pose') acc.push(m);
+      else if (mode === 'live') { decide(m, now); adaptBackground(px); }
+    }
+    draw();
+  }
+
+  function draw() {
+    const r = view.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (view.width !== Math.round(r.width * dpr)) { view.width = Math.round(r.width * dpr); view.height = Math.round(r.height * dpr); }
+    const cw = view.width, ch = view.height;
+    // fit the camera picture (cover), mirrored so it feels like a mirror
+    const vw = video.videoWidth || 4, vh = video.videoHeight || 3, sc = Math.max(cw / vw, ch / vh);
+    const dw = vw * sc, dh = vh * sc, ox = (cw - dw) / 2, oy = (ch - dh) / 2;
+    vctx.save();
+    vctx.translate(cw, 0); vctx.scale(-1, 1);
+    vctx.drawImage(video, cw - ox - dw, oy, dw, dh);
+    if (haveBg && mode !== 'bg') {
+      const d = maskImg.data, col = st.duck ? [255, 62, 201] : st.jump ? [123, 255, 74] : [46, 242, 255];
+      for (let i = 0; i < N; i++) { const j = i * 4; d[j] = col[0]; d[j + 1] = col[1]; d[j + 2] = col[2]; d[j + 3] = mask[i] ? 110 : 0; }
+      mctx.putImageData(maskImg, 0, 0);
+      vctx.imageSmoothingEnabled = true;
+      vctx.drawImage(maskCanvas, cw - ox - dw, oy, dw, dh);
+    }
+    vctx.restore();
+    // guide lines (in mirrored view coordinates)
+    if (base && mode === 'live') {
+      const s = SENS[sensIdx], X = x => ox + (1 - x) * dw, Y = y => oy + y * dh;
+      vctx.lineWidth = 2 * dpr; vctx.setLineDash([8 * dpr, 8 * dpr]);
+      vctx.strokeStyle = 'rgba(255,255,255,.35)';
+      [base.cx - s.lane, base.cx + s.lane].forEach(x => { vctx.beginPath(); vctx.moveTo(X(x), oy); vctx.lineTo(X(x), oy + dh); vctx.stroke(); });
+      vctx.strokeStyle = 'rgba(255,62,201,.7)';
+      const dy = Y(base.top + s.duck * base.h); vctx.beginPath(); vctx.moveTo(ox, dy); vctx.lineTo(ox + dw, dy); vctx.stroke();
+      vctx.setLineDash([]);
+      if (st.seen) {
+        vctx.fillStyle = '#fff';
+        vctx.beginPath(); vctx.arc(X(st.cx), Y(st.cy), 7 * dpr, 0, 6.283); vctx.fill();
+      }
+      if (st.hands > 0) {
+        vctx.strokeStyle = '#ffe23e'; vctx.lineWidth = 8 * dpr;
+        vctx.beginPath(); vctx.arc(cw / 2, ch / 2, 50 * dpr, -1.57, -1.57 + 6.283 * st.hands); vctx.stroke();
+      }
+    }
+    $('c-left').classList.toggle('on', st.lane === -1);
+    $('c-mid').classList.toggle('on', st.lane === 0 && mode === 'live' && st.seen);
+    $('c-right').classList.toggle('on', st.lane === 1);
+    $('c-jump').classList.toggle('on', st.jump);
+    $('c-duck').classList.toggle('on', st.duck);
+    if (mode === 'live' && !st.seen && !$('big').classList.contains('on')) flashBig('<b>Can\'t see you</b><p>Step back into view</p>');
+  }
+
+  // ================= Buttons =================
+  $('b-cal').onclick = calibrate;
+  $('b-join').onclick = () => { send({ t: 'btn', b: 'a' }); vibrate(30); };
+  $('b-more').onclick = () => { const m = $('more'); m.style.display = m.style.display === 'none' ? 'flex' : 'none'; };
+  $('b-swap').onclick = () => { swap = !swap; store.set('swap', swap); flashBig('<b>Left and right ' + (swap ? 'swapped' : 'normal') + '</b>'); };
+  const sensLabel = () => { $('b-sens').textContent = 'Sensitivity: ' + SENS[sensIdx].name; };
+  sensLabel();
+  $('b-sens').onclick = () => { sensIdx = (sensIdx + 1) % SENS.length; store.set('sens', sensIdx); sensLabel(); };
+  $('b-leave').onclick = () => { send({ t: 'btn', b: 'b' }); flashBig('<b>Left the game</b>'); };
+
+  window.GNPhone = { state: st, base: () => base, mode: () => mode, calibrate };
+})();
+</script>
+</body>
+</html>
