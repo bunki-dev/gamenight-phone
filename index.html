@@ -4,94 +4,147 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#06071a">
-<title>Game Night Camera</title>
+<title>Game Night Controller</title>
 <style>
-  :root { --bg:#06071a; --panel:#11143a; --text:#eef3ff; --muted:#9aa6d6; --cyan:#2ef2ff; --pink:#ff3ec9; --lime:#7bff4a; --red:#ff4f4f; }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
-  .screen { position: fixed; inset: 0; display: none; flex-direction: column; padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom)); }
+  :root { --bg:#06071a; --panel:#11143a; --text:#eef3ff; --muted:#9aa6d6; --cyan:#2ef2ff; --pink:#ff3ec9; --lime:#7bff4a; --red:#ff4f4f; --yellow:#ffe23e; --me:#2ef2ff; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; touch-action: none; }
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)); }
   .screen.on { display: flex; }
   h1 { margin: 6px 0 4px; font-size: 30px; letter-spacing: 2px; }
   h1 span { color: var(--pink); }
   p { margin: 6px 0; color: var(--muted); }
   .center { margin: auto 0; text-align: center; }
-  input.code { width: 100%; max-width: 340px; padding: 14px; margin: 18px auto 8px; display: block; text-align: center; font: 700 38px/1 system-ui, sans-serif;
-               letter-spacing: 12px; text-transform: uppercase; color: var(--text); background: var(--panel); border: 3px solid #2a2f6e; border-radius: 16px; outline: none; }
-  input.code:focus { border-color: var(--cyan); }
-  button { font: 700 18px system-ui, sans-serif; color: #06071a; background: var(--cyan); border: 0; border-radius: 999px; padding: 14px 26px; cursor: pointer; }
+  input.code, input.name { width: 100%; max-width: 340px; padding: 12px; margin: 10px auto 6px; display: block; text-align: center; color: var(--text);
+    background: var(--panel); border: 3px solid #2a2f6e; border-radius: 16px; outline: none; -webkit-user-select: text; user-select: text; }
+  input.code { font: 800 36px/1 system-ui, sans-serif; letter-spacing: 12px; text-transform: uppercase; }
+  input.name { font: 700 22px/1 system-ui, sans-serif; }
+  input:focus { border-color: var(--cyan); }
+  label.small { display: block; font-size: 13px; color: var(--muted); margin-top: 12px; }
+  button { font: 800 18px system-ui, sans-serif; color: #06071a; background: var(--cyan); border: 0; border-radius: 999px; padding: 14px 26px; cursor: pointer; }
   button.ghost { background: transparent; color: var(--text); border: 2px solid #3a4180; }
   button.pink { background: var(--pink); }
-  button:disabled { opacity: .4; }
   .msg { min-height: 24px; margin-top: 10px; }
   .msg.err { color: var(--red); }
-  .msg.ok { color: var(--lime); }
+  .bar { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+  .bar .sp { flex: 1; }
+  .pill { padding: 5px 11px; border-radius: 999px; background: rgba(255,255,255,.08); white-space: nowrap; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--red); }
+  .dot.on { background: var(--lime); } .dot.mid { background: var(--yellow); }
+  .you { padding: 5px 12px; border-radius: 999px; color: #06071a; background: var(--me); }
+
+  /* lobby */
+  #s-lobby .big { margin: auto; width: min(80vw, 340px); aspect-ratio: 1; border-radius: 50%; font-size: 30px; background: radial-gradient(circle at 40% 35%, #ff7ad9, var(--pink)); box-shadow: 0 0 60px rgba(255,62,201,.5); }
+  #s-lobby .big:active { transform: scale(.96); }
 
   /* camera */
   #stage { position: relative; flex: 1; margin: 10px 0; border-radius: 18px; overflow: hidden; background: #000; }
   #view { position: absolute; inset: 0; width: 100%; height: 100%; }
   video { display: none; }
-  .badge { position: absolute; top: 10px; left: 10px; padding: 6px 12px; border-radius: 999px; background: rgba(6,7,26,.75); font-size: 14px; font-weight: 700; }
-  .badge.r { left: auto; right: 10px; }
-  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--red); vertical-align: 0; }
-  .dot.on { background: var(--lime); }
-  #big { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: rgba(6,7,26,.55); padding: 20px; }
+  #big { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: rgba(6,7,26,.5); padding: 20px; pointer-events: none; }
   #big.on { display: flex; }
-  #big b { font-size: 34px; line-height: 1.2; }
+  #big b { font-size: 30px; line-height: 1.2; text-shadow: 0 2px 10px #000; }
   #big i { font-style: normal; font-size: 90px; font-weight: 900; color: var(--cyan); }
-  .chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-  .chip { padding: 8px 14px; border-radius: 12px; background: var(--panel); font-weight: 800; font-size: 16px; min-width: 64px; text-align: center; transition: background .1s; }
+  #big p { color: #dfe6ff; text-shadow: 0 2px 8px #000; }
+  #tip { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 10px 14px; border-radius: 14px; background: rgba(6,7,26,.8); font-weight: 800; text-align: center; display: none; }
+  #tip.on { display: block; }
+  .chips { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .chip { padding: 7px 12px; border-radius: 12px; background: var(--panel); font-weight: 800; font-size: 15px; min-width: 58px; text-align: center; }
   .chip.on { background: var(--cyan); color: #06071a; }
-  .chip.jump.on { background: var(--lime); }
-  .chip.duck.on { background: var(--pink); }
-  .row { display: flex; gap: 10px; margin-top: 10px; }
-  .row button { flex: 1; padding: 13px 8px; }
-  #you { display: none; padding: 8px 14px; border-radius: 12px; font-weight: 800; text-align: center; margin-top: 8px; color: #06071a; }
-  ol { color: var(--muted); padding-left: 22px; margin: 8px 0; }
-  ol li { margin: 4px 0; }
-  .small { font-size: 13px; color: var(--muted); text-align: center; margin-top: 8px; }
+  .chip.jump.on { background: var(--lime); } .chip.duck.on { background: var(--pink); }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  .row button { flex: 1; padding: 12px 6px; font-size: 16px; }
+
+  /* touch pad */
+  #pad { position: relative; flex: 1; margin-top: 10px; border-radius: 22px; overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #1a1f55, #0a0c26); border: 3px solid var(--me); box-shadow: inset 0 0 60px rgba(46,242,255,.15); }
+  #pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #padHint { position: absolute; left: 0; right: 0; top: 40%; text-align: center; color: var(--muted); font-weight: 800; pointer-events: none; }
+
+  /* quiz */
+  #q-text { font-size: 18px; font-weight: 700; min-height: 54px; margin: 8px 2px; }
+  .answers { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ans { border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px;
+    font: 800 17px/1.25 system-ui, sans-serif; color: #fff; border: 4px solid transparent; position: relative; }
+  .ans b { font-size: 34px; line-height: 1; margin-bottom: 6px; }
+  .ans.a0 { background: #e0303f; } .ans.a1 { background: #2a6cf0; } .ans.a2 { background: #d9a400; } .ans.a3 { background: #23a845; }
+  .ans.dim { opacity: .3; } .ans.pick { border-color: #fff; transform: scale(1.03); }
+  .ans.right { box-shadow: 0 0 0 6px var(--lime), 0 0 30px var(--lime); opacity: 1; transform: scale(1.04); } .ans.wrong { opacity: .25; }
+  #q-res { min-height: 30px; text-align: center; font-weight: 900; font-size: 22px; margin-top: 8px; }
 </style>
 </head>
 <body>
 
-<!-- 1. Room code -->
+<!-- 1. Join -->
 <section id="s-join" class="screen on">
   <div class="center">
     <h1>GAME <span>NIGHT</span></h1>
     <p>Enter the room code shown on the TV</p>
     <input id="code" class="code" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE">
-    <button id="go">Connect</button>
+    <label class="small" for="name">Your name</label>
+    <input id="name" class="name" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Player">
+    <button id="go" style="margin-top:12px">Connect</button>
     <div id="joinMsg" class="msg"></div>
   </div>
-  <p class="small">Your camera video stays on this phone. Only moves like "left" or "jump" are sent to the TV.</p>
+  <p class="small" style="text-align:center">Your camera video never leaves this phone. Only moves like "left" or "jump" are sent to the TV.</p>
 </section>
 
-<!-- 2. Camera + play -->
+<!-- top bar shared by the in-game screens -->
+<template id="tpl-bar">
+  <div class="bar"><span class="pill"><span class="dot linkDot"></span><span class="linkTxt">Connecting…</span></span><span class="sp"></span><span class="you youTag" style="display:none"></span></div>
+</template>
+
+<!-- 2. Lobby / buttons -->
+<section id="s-lobby" class="screen">
+  <div class="barSlot"></div>
+  <p id="lobbyTxt" style="text-align:center;margin-top:18px">Connected! Press JOIN to play.</p>
+  <button class="big" id="b-bigjoin">JOIN</button>
+  <p style="text-align:center">Press again to start the game</p>
+</section>
+
+<!-- 3. Camera -->
 <section id="s-cam" class="screen">
+  <div class="barSlot"></div>
   <div id="stage">
     <video id="video" playsinline muted autoplay></video>
     <canvas id="view"></canvas>
-    <div class="badge"><span id="linkDot" class="dot"></span><span id="linkTxt">Connecting…</span></div>
-    <div class="badge r" id="fps"></div>
     <div id="big"></div>
+    <div id="tip"></div>
   </div>
   <div class="chips">
-    <div class="chip" id="c-left">◀ LEFT</div>
-    <div class="chip" id="c-mid">MIDDLE</div>
-    <div class="chip" id="c-right">RIGHT ▶</div>
-    <div class="chip jump" id="c-jump">JUMP</div>
-    <div class="chip duck" id="c-duck">DUCK</div>
+    <div class="chip" id="c-left">◀ LEFT</div><div class="chip" id="c-mid">MID</div><div class="chip" id="c-right">RIGHT ▶</div>
+    <div class="chip jump" id="c-jump">JUMP</div><div class="chip duck" id="c-duck">DUCK</div>
   </div>
-  <div id="you"></div>
   <div class="row">
     <button id="b-join" class="pink">Join / Start</button>
     <button id="b-cal" class="ghost">Calibrate</button>
     <button id="b-more" class="ghost">⋯</button>
   </div>
   <div class="row" id="more" style="display:none">
+    <button id="b-quick" class="ghost">Re-centre me</button>
     <button id="b-swap" class="ghost">Swap L/R</button>
-    <button id="b-sens" class="ghost">Sensitivity: normal</button>
-    <button id="b-leave" class="ghost">Leave</button>
+    <button id="b-sens" class="ghost">Sens: normal</button>
   </div>
+</section>
+
+<!-- 4. Touch pad (Air Hockey) -->
+<section id="s-pad" class="screen">
+  <div class="barSlot"></div>
+  <div id="pad"><canvas id="padCanvas"></canvas><div id="padHint">Drag your finger to move your mallet</div></div>
+  <div class="row"><button id="b-padgo" class="pink">✕ Start / Play again</button></div>
+</section>
+
+<!-- 5. Quiz buttons -->
+<section id="s-quiz" class="screen">
+  <div class="barSlot"></div>
+  <div id="q-text">Get ready…</div>
+  <div class="answers">
+    <div class="ans a0" data-i="0"><b>▲</b><span>A</span></div>
+    <div class="ans a1" data-i="1"><b>◆</b><span>B</span></div>
+    <div class="ans a2" data-i="2"><b>●</b><span>C</span></div>
+    <div class="ans a3" data-i="3"><b>■</b><span>D</span></div>
+  </div>
+  <div id="q-res"></div>
 </section>
 
 <script>
@@ -261,279 +314,404 @@ var MqttLite = (function () {
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
-
-  // ================= Settings =================
   const store = {
     get(k, d) { try { const v = localStorage.getItem('gnp.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('gnp.' + k, JSON.stringify(v)); } catch (e) {} }
   };
   const phoneId = store.get('id', null) || ('p' + Math.random().toString(36).slice(2, 10));
   store.set('id', phoneId);
-  let swap = store.get('swap', false);
-  const SENS = [
-    { name: 'gentle', lane: 0.13, jump: 0.08, duck: 0.26 },
-    { name: 'normal', lane: 0.10, jump: 0.06, duck: 0.21 },
-    { name: 'twitchy', lane: 0.075, jump: 0.045, duck: 0.17 }
-  ];
-  let sensIdx = store.get('sens', 1);
+  const vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 
-  // ================= Link to the TV =================
-  let mq = null, room = null;
+  // shared top bar in every screen
+  document.querySelectorAll('.barSlot').forEach(s => s.appendChild($('tpl-bar').content.cloneNode(true)));
+
+  // =====================================================================
+  // Link to the TV: MQTT relay + direct WebRTC data channel when possible
+  // =====================================================================
+  let mq = null, room = null, tvSeen = false, pc = null, dc = null, direct = false, rtt = null, rtcTries = 0;
+  const handlers = [];
   function connect(code) {
     room = code;
-    const opts = { onStatus: s => linkStatus(s) };
+    const opts = { onStatus: () => updateLink() };
     const q = new URLSearchParams(location.search);
     if (q.get('broker')) opts.brokers = [q.get('broker')];
     mq = new MqttLite.Client(opts);
     mq.subscribe('gamenight/v1/' + room + '/down/' + phoneId);
-    mq.onMessage((t, raw) => {
-      let m; try { m = JSON.parse(raw); } catch (e) { return; }
-      if (m.t === 'welcome') { tvSeen = true; linkStatus('online'); }
-      if (m.t === 'joined') {
-        const y = $('you');
-        y.style.display = 'block'; y.style.background = m.color; y.textContent = 'You are ' + m.name;
-        vibrate(60);
-      }
-      if (m.t === 'left') $('you').style.display = 'none';
-    });
-    setInterval(() => send({ t: 'ping' }), 2000);
-    setTimeout(() => send({ t: 'hello' }), 600);
+    mq.onMessage((t, raw) => { let m; try { m = JSON.parse(raw); } catch (e) { return; } onTv(m); });
+    setInterval(() => send({ t: 'ping', ts: Date.now() }), 2000);
+    setTimeout(hello, 500);
   }
-  let tvSeen = false;
-  function linkStatus(s) {
-    const on = s === 'online';
-    $('linkDot').className = 'dot' + (on && tvSeen ? ' on' : '');
-    $('linkTxt').textContent = !on ? 'Connecting…' : tvSeen ? 'TV ' + room : 'Waiting for TV ' + room + '…';
-    if (on && !tvSeen) send({ t: 'hello' });
+  function hello() { sendRelay({ t: 'hello', name: myName(), v: 3, rtc: !!window.RTCPeerConnection }); }
+  function myName() { return (store.get('name', '') || '').slice(0, 12); }
+  function sendRelay(m) { if (mq) mq.publish('gamenight/v1/' + room + '/up/' + phoneId, JSON.stringify(m)); }
+  function send(m) {
+    if (direct && dc && dc.readyState === 'open') { try { dc.send(JSON.stringify(m)); return; } catch (e) {} }
+    sendRelay(m);
   }
-  function send(m) { if (mq) mq.publish('gamenight/v1/' + room + '/up/' + phoneId, JSON.stringify(m)); }
-  function vibrate(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
 
-  // ================= Screens =================
+  function startRtc() {
+    if (!window.RTCPeerConnection || rtcTries > 3) return;
+    rtcTries++;
+    try { if (pc) pc.close(); } catch (e) {}
+    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    dc = pc.createDataChannel('gn', { ordered: true });
+    dc.onopen = () => { direct = true; updateLink(); };
+    dc.onclose = () => { direct = false; updateLink(); setTimeout(startRtc, 4000); };
+    dc.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } onTv(m); };
+    pc.onicecandidate = e => { if (e.candidate) sendRelay({ t: 'ice', c: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
+    pc.createOffer().then(o => pc.setLocalDescription(o)).then(() => sendRelay({ t: 'offer', sdp: pc.localDescription.sdp }));
+    setTimeout(() => { if (!direct) updateLink(); }, 6000);
+  }
+
+  function onTv(m) {
+    if (m.t === 'welcome') {
+      if (!tvSeen) { tvSeen = true; if (m.rtc) startRtc(); }
+      if (m.mode) setMode(m.mode, m);
+    }
+    else if (m.t === 'answer' && pc) pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }).catch(() => {});
+    else if (m.t === 'ice' && pc) pc.addIceCandidate(m.c).catch(() => {});
+    else if (m.t === 'pong') { rtt = Date.now() - m.ts; updateLink(); }
+    else if (m.t === 'joined') { setMe(m.color, m.name); vibrate(60); }
+    else if (m.t === 'left') setMe(null);
+    else if (m.t === 'mode') setMode(m.mode, m);
+    else if (m.t === 'stream') streamUntil = m.on ? performance.now() + 10000 : 0;
+    else if (m.t === 'quiz') quizUpdate(m);
+    else if (m.t === 'padinfo') { padInfo = m; if (mode === 'pad') drawPad(); }
+    else if (m.t === 'buzz') vibrate(m.ms || 30);
+    handlers.forEach(h => h(m));
+    if (!tvSeen) { tvSeen = true; updateLink(); }
+  }
+
+  function updateLink() {
+    const on = mq && mq.connected;
+    const cls = 'dot linkDot' + (direct ? ' on' : on && tvSeen ? ' mid' : '');
+    const txt = !on && !direct ? 'Connecting…' : !tvSeen ? 'Waiting for TV ' + room + '…' :
+      (direct ? 'Direct' : 'Relay') + (rtt !== null ? ' · ' + rtt + ' ms' : '');
+    document.querySelectorAll('.linkDot').forEach(e => e.className = cls);
+    document.querySelectorAll('.linkTxt').forEach(e => e.textContent = txt);
+  }
+  function setMe(color, name) {
+    document.querySelectorAll('.youTag').forEach(e => {
+      e.style.display = color ? '' : 'none'; e.style.background = color || ''; e.textContent = name || '';
+    });
+    if (color) document.documentElement.style.setProperty('--me', color);
+  }
+
+  // =====================================================================
+  // Screens / modes requested by the TV
+  // =====================================================================
+  let mode = 'join';
   function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
-  function big(html) { const b = $('big'); b.innerHTML = html || ''; b.classList.toggle('on', !!html); }
+  function setMode(mo) {
+    if (mo === mode) return;
+    mode = mo;
+    if (mo === 'camera') { show('s-cam'); ensureCamera(); }
+    else if (mo === 'pad') { show('s-pad'); sizePad(); }
+    else if (mo === 'quiz') show('s-quiz');
+    else show('s-lobby');
+    if (mo !== 'camera') pauseCamera();
+  }
 
   const params = new URLSearchParams(location.search);
   $('code').value = (params.get('room') || store.get('room', '')).toUpperCase();
+  $('name').value = store.get('name', '');
   $('code').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); });
-  $('go').onclick = async () => {
+  $('go').onclick = () => {
     const code = $('code').value.trim().toUpperCase();
     if (!/^[A-Z]{5}$/.test(code)) { msg('Room codes are 5 letters.', 'err'); return; }
-    store.set('room', code);
-    msg('Starting camera…');
-    try { await startCamera(); }
-    catch (e) {
-      msg(location.protocol !== 'https:' && location.hostname !== 'localhost'
-        ? 'The camera needs a secure (https) page.' : 'Camera blocked. Allow camera access for this page and try again.', 'err');
-      return;
-    }
+    store.set('room', code); store.set('name', $('name').value.trim().slice(0, 12));
     connect(code);
-    show('s-cam');
+    mode = 'lobby'; show('s-lobby');
     keepAwake();
-    big('<b>Lean your phone against something<br>about 2–3 metres away, facing you.</b><p>Your whole body should fit in the picture.<br>Then tap <b>Calibrate</b>.</p>');
   };
   function msg(t, kind) { const m = $('joinMsg'); m.textContent = t; m.className = 'msg ' + (kind || ''); }
-
   async function keepAwake() {
-    try { if ('wakeLock' in navigator) { await navigator.wakeLock.request('screen'); } } catch (e) {}
+    try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {}
     document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); }, { once: true });
   }
+  $('b-bigjoin').onclick = () => { send({ t: 'btn', b: 'a' }); vibrate(30); };
 
-  // ================= Camera =================
+  // =====================================================================
+  // Camera + body tracking
+  // =====================================================================
   const video = $('video');
-  async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } }, audio: false
-    });
-    video.srcObject = stream;
-    await video.play();
-    requestAnimationFrame(loop);
+  let stream = null, camStarting = false;
+  async function ensureCamera() {
+    if (stream || camStarting) { if (stream) resumeCamera(); return; }
+    camStarting = true;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      schedule();
+      if (!base) big('<b>Lean your phone 2–3 m away, facing you.</b><p>Your whole body should fit in the picture.<br>Then tap <b>Calibrate</b>.</p>');
+    } catch (e) {
+      big('<b>Camera blocked</b><p>Allow camera access for this page in your browser settings, then reload.</p>');
+    }
+    camStarting = false;
   }
+  function pauseCamera() { if (stream) stream.getVideoTracks().forEach(t => t.enabled = false); }
+  function resumeCamera() { if (stream) stream.getVideoTracks().forEach(t => t.enabled = true); }
 
-  // ================= Body tracking (background subtraction) =================
   const W = 96, H = 72, N = W * H;
   const work = document.createElement('canvas'); work.width = W; work.height = H;
   const wctx = work.getContext('2d', { willReadFrequently: true });
   const maskCanvas = document.createElement('canvas'); maskCanvas.width = W; maskCanvas.height = H;
-  const mctx = maskCanvas.getContext('2d');
-  const maskImg = mctx.createImageData(W, H);
-  const bg = new Float32Array(N * 3);
-  const raw = new Uint8Array(N), mask = new Uint8Array(N);
-  let haveBg = false, thresh = 70;
-  let base = null;            // standing pose: { cx, cy, top, bot, h }
-  let mode = 'idle';          // idle | bg | pose | live
-  let acc = null, accN = 0, prevFrame = null, noiseSum = 0, noiseN = 0;
-  const st = { lane: 0, jump: false, duck: false, hands: 0, seen: false, frac: 0, cx: 0, cy: 0, top: 0, bot: 0 };
-  let jumpArmed = true, lastJumpAt = 0, handsSince = 0, lastHandsAt = 0, frames = 0, fpsT = performance.now();
+  const mctx = maskCanvas.getContext('2d'), maskImg = mctx.createImageData(W, H);
+  const bg = new Float32Array(N * 3), raw = new Uint8Array(N), mask = new Uint8Array(N), prevMask = new Uint8Array(N);
+  const thr = new Float32Array(N).fill(70), acc2 = new Float32Array(N * 3);   // per-pixel thresholds learnt from camera noise
+  let haveBg = false, thresh = 70, gain = 1;
+  let base = null, cal = 'idle';           // idle | bgwait | bg | pose | live
+  let swap = store.get('swap', false);
+  const SENS = [
+    { name: 'gentle', lane: 0.13, jump: 0.075, duck: 0.25 },
+    { name: 'normal', lane: 0.10, jump: 0.055, duck: 0.2 },
+    { name: 'twitchy', lane: 0.075, jump: 0.042, duck: 0.16 }
+  ];
+  let sensIdx = store.get('sens', 1);
+  const st = { lane: 0, jump: false, duck: false, hands: 0, seen: false };
+  let prev = null, lastM = null;
 
-  function grab() {
-    wctx.drawImage(video, 0, 0, W, H);
-    return wctx.getImageData(0, 0, W, H).data;
-  }
+  function grab() { wctx.drawImage(video, 0, 0, W, H); return wctx.getImageData(0, 0, W, H).data; }
 
   function measure(px) {
-    let n = 0;
+    // 1) exposure compensation: compare brightness of the background areas
+    let sCur = 0, sBg = 0;
+    for (let i = 0; i < N; i += 3) if (!prevMask[i]) { const j = i * 4, k = i * 3; sCur += px[j] + px[j + 1] + px[j + 2]; sBg += bg[k] + bg[k + 1] + bg[k + 2]; }
+    gain = sBg > 0 ? Math.max(0.6, Math.min(1.6, sCur / sBg)) : 1;
+    // 2) foreground mask with shadow suppression
     for (let i = 0, j = 0; i < N; i++, j += 4) {
-      const d = Math.abs(px[j] - bg[i * 3]) + Math.abs(px[j + 1] - bg[i * 3 + 1]) + Math.abs(px[j + 2] - bg[i * 3 + 2]);
-      raw[i] = d > thresh ? 1 : 0;
+      const k = i * 3, br = bg[k] * gain, bgg = bg[k + 1] * gain, bb = bg[k + 2] * gain;
+      const r = px[j], g = px[j + 1], b = px[j + 2];
+      const d = Math.abs(r - br) + Math.abs(g - bgg) + Math.abs(b - bb);
+      let on = d > thr[i] ? 1 : 0;
+      if (on) {
+        const s1 = r + g + b + 1, s0 = br + bgg + bb + 1, ratio = s1 / s0;
+        const chroma = Math.abs(r / s1 - br / s0) + Math.abs(g / s1 - bgg / s0);
+        if (ratio > 0.4 && ratio < 0.92 && chroma < 0.05) on = 0;     // looks like a shadow, not a person
+      }
+      raw[i] = on;
     }
-    // clean up speckles: keep a pixel only if at least 2 of its 4 neighbours agree
-    let sx = 0, sy = 0;
-    const rows = new Uint16Array(H);
+    let n = 0, sx = 0, sy = 0;
+    const rows = new Uint16Array(H), cols = new Uint16Array(W);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x;
       let on = 0;
-      if (raw[i]) {
-        const nb = (x > 0 && raw[i - 1]) + (x < W - 1 && raw[i + 1]) + (y > 0 && raw[i - W]) + (y < H - 1 && raw[i + W]);
-        on = nb >= 2 ? 1 : 0;
-      }
+      if (raw[i]) { const nb = (x > 0 && raw[i - 1]) + (x < W - 1 && raw[i + 1]) + (y > 0 && raw[i - W]) + (y < H - 1 && raw[i + W]); on = nb >= 2 ? 1 : 0; }
       mask[i] = on;
-      if (on) { n++; sx += x; sy += y; rows[y]++; }
+      if (on) { n++; sx += x; sy += y; rows[y]++; cols[x]++; }
     }
+    prevMask.set(mask);
     const frac = n / N;
-    if (n < N * 0.015) return { seen: false, frac };
-    // top / bottom = 3rd and 97th percentile rows of the silhouette
-    let c = 0, top = 0, bot = H - 1;
-    for (let y = 0; y < H; y++) { c += rows[y]; if (c >= n * 0.03) { top = y; break; } }
-    c = 0;
-    for (let y = H - 1; y >= 0; y--) { c += rows[y]; if (c >= n * 0.03) { bot = y; break; } }
-    return { seen: true, frac, cx: sx / n / W, cy: sy / n / H, top: top / H, bot: bot / H };
+    if (n < N * 0.012) return { seen: false, frac };
+    let c = 0, top = 0, bot = H - 1, left = 0, right = W - 1;
+    for (let y = 0; y < H; y++) { c += rows[y]; if (c >= n * 0.02) { top = y; break; } }
+    c = 0; for (let y = H - 1; y >= 0; y--) { c += rows[y]; if (c >= n * 0.02) { bot = y; break; } }
+    c = 0; for (let x = 0; x < W; x++) { c += cols[x]; if (c >= n * 0.03) { left = x; break; } }
+    c = 0; for (let x = W - 1; x >= 0; x--) { c += cols[x]; if (c >= n * 0.03) { right = x; break; } }
+    return { seen: true, frac, cx: sx / n / W, cy: sy / n / H, top: top / H, bot: (bot + 1) / H, wid: Math.max(1, right - left) / W, left: left / W, right: (right + 1) / W };
   }
 
   function adaptBackground(px) {
     for (let i = 0, j = 0; i < N; i++, j += 4) {
       if (mask[i]) continue;
       const k = i * 3;
-      bg[k] += (px[j] - bg[k]) * 0.02; bg[k + 1] += (px[j + 1] - bg[k + 1]) * 0.02; bg[k + 2] += (px[j + 2] - bg[k + 2]) * 0.02;
+      bg[k] += (px[j] / gain - bg[k]) * 0.03; bg[k + 1] += (px[j + 1] / gain - bg[k + 1]) * 0.03; bg[k + 2] += (px[j + 2] / gain - bg[k + 2]) * 0.03;
     }
   }
 
+  // ---------- turning measurements into moves (with early triggers from speed) ----------
+  let jumpArmed = true, lastJumpAt = 0, handsSince = 0, lastHandsAt = 0;
   function decide(m, now) {
     const s = SENS[sensIdx];
-    st.seen = m.seen;
-    if (!m.seen || !base) return;
-    Object.assign(st, { cx: m.cx, cy: m.cy, top: m.top, bot: m.bot });
-    // Lanes. Front camera: stepping to YOUR left moves you to the camera's right (bigger x).
-    let dx = m.cx - base.cx;
-    if (!swap) dx = -dx;
+    st.seen = m.seen; lastM = m;
+    if (!m.seen || !base) { prev = null; return; }
+    const dt = prev ? Math.max(0.016, (now - prev.t) / 1000) : 0.033;
+    let dx = m.cx - base.cx; if (!swap) dx = -dx;   // front camera: your left is the camera's right
+    const rise = (base.cy - m.cy) / base.h, drop = (m.top - base.top) / base.h, reach = (base.top - m.top) / base.h, lift = (base.bot - m.bot) / base.h;
+    const v = prev ? { dx: (dx - prev.dx) / dt, lift: (lift - prev.lift) / dt, drop: (drop - prev.drop) / dt, rise: (rise - prev.rise) / dt } : { dx: 0, lift: 0, drop: 0, rise: 0 };
+    prev = { t: now, dx, lift, drop, rise };
+
+    // lanes: switch at the threshold, or earlier if you're clearly moving that way fast
     let lane = st.lane;
-    if (lane === 0) { if (dx < -s.lane) lane = -1; else if (dx > s.lane) lane = 1; }
-    else if (lane === -1) { if (dx > -s.lane * 0.6) lane = dx > s.lane ? 1 : 0; }
-    else if (lane === 1) { if (dx < s.lane * 0.6) lane = dx < -s.lane ? -1 : 0; }
+    const early = s.lane * 0.6;
+    if (lane === 0) {
+      if (dx < -s.lane || (dx < -early && v.dx < -0.5)) lane = -1;
+      else if (dx > s.lane || (dx > early && v.dx > 0.5)) lane = 1;
+    } else if (lane === -1) { if (dx > -s.lane * 0.55 && !(v.dx < -0.2)) lane = dx > s.lane ? 1 : 0; }
+    else if (lane === 1) { if (dx < s.lane * 0.55 && !(v.dx > 0.2)) lane = dx < -s.lane ? -1 : 0; }
     if (lane !== st.lane) { st.lane = lane; send({ t: 'lane', v: lane }); }
 
-    const rise = (base.cy - m.cy) / base.h;      // whole body moved up = jump
-    const drop = (m.top - base.top) / base.h;    // head went down = duck
-    const reach = (base.top - m.top) / base.h;   // top went up without the body rising = hands up
-    const lift = (base.bot - m.bot) / base.h;    // feet left the floor
-    const feetVisible = base.bot < 0.96;         // if the feet are cut off, fall back to body height only
-    const jumping = feetVisible ? (lift > s.jump * 0.6 && rise > s.jump * 0.5) : rise > s.jump;
-
-    // Jump (trigger)
-    if (jumpArmed && jumping && now - lastJumpAt > 500) {
+    // jump: feet leaving the floor (or the whole body rising fast if feet are out of view)
+    const feet = base.bot < 0.97;
+    const sideways = Math.abs(v.dx) > 0.4;      // big sideways moves can briefly distort the outline
+    const jumping = feet ? ((lift > s.jump * 0.55 && rise > s.jump * 0.35) || (!sideways && lift > s.jump * 0.3 && v.lift > 0.9))
+                         : (rise > s.jump || (!sideways && rise > s.jump * 0.5 && v.rise > 1.0));
+    if (jumpArmed && jumping && now - lastJumpAt > 450) {
       jumpArmed = false; lastJumpAt = now; st.jump = true;
-      send({ t: 'jump' }); vibrate(30);
-      setTimeout(() => { st.jump = false; }, 350);
+      send({ t: 'jump' }); vibrate(25);
+      setTimeout(() => { st.jump = false; }, 300);
     }
-    if (!jumpArmed && !jumping && rise < s.jump * 0.4) jumpArmed = true;
+    if (!jumpArmed && !jumping && rise < s.jump * 0.35) jumpArmed = true;
 
-    // Duck (held)
-    const duck = st.duck ? drop > s.duck * 0.6 : drop > s.duck;
+    // duck: head drops (fast drops trigger a little earlier)
+    const duck = st.duck ? drop > s.duck * 0.55 : ((drop > s.duck && !sideways) || (drop > s.duck * 1.25) || (!sideways && drop > s.duck * 0.75 && v.drop > 1.2));
     if (duck !== st.duck) { st.duck = duck; send({ t: 'duck', v: duck }); }
 
-    // Both hands up for ~0.7 s = press the join / start button
-    if (reach > 0.12 && (feetVisible ? lift < 0.03 : Math.abs(rise) < s.jump * 0.8) && !st.duck) {
+    // both hands up ~0.6 s = Join/Start button
+    if (reach > 0.12 && (feet ? lift < 0.03 : Math.abs(rise) < s.jump * 0.8) && !st.duck) {
       if (!handsSince) handsSince = now;
-      st.hands = Math.min(1, (now - handsSince) / 700);
-      if (now - handsSince > 700 && now - lastHandsAt > 2500) {
+      st.hands = Math.min(1, (now - handsSince) / 600);
+      if (now - handsSince > 600 && now - lastHandsAt > 2500) {
         lastHandsAt = now; handsSince = 0; st.hands = 0;
-        send({ t: 'btn', b: 'a' }); vibrate([40, 40, 40]);
-        flashBig('<b>🙌 Button pressed</b>');
+        send({ t: 'btn', b: 'a' }); vibrate([40, 40, 40]); flash('<b>🙌 Button pressed</b>');
       }
     } else { handsSince = 0; st.hands = 0; }
 
-    // Slowly follow the player's resting height (they may shuffle closer or further away)
+    // follow slow drift in where you stand
     if (st.lane === 0 && !st.duck && Math.abs(rise) < s.jump * 0.3 && Math.abs(drop) < 0.06) {
       base.cy += (m.cy - base.cy) * 0.01; base.top += (m.top - base.top) * 0.01; base.bot += (m.bot - base.bot) * 0.01;
       base.h = Math.max(0.2, base.bot - base.top);
     }
   }
 
-  let flashT = 0;
-  function flashBig(html) { big(html); clearTimeout(flashT); flashT = setTimeout(() => { if (mode === 'live') big(''); }, 900); }
-
-  // ================= Calibration =================
-  let calTimers = [];
-  function calibrate() {
-    calTimers.forEach(clearTimeout); calTimers = [];
-    mode = 'idle'; base = null; haveBg = false;
-    let n = 4;
-    const tick = () => {
-      big('<b>Step out of view</b><i>' + n + '</i><p>So I can learn what the room looks like</p>');
-      if (n === 1) { mode = 'bg'; acc = new Float32Array(N * 3); accN = 0; noiseSum = 0; noiseN = 0; prevFrame = null; }
-      if (n-- > 0) calTimers.push(setTimeout(tick, 1000)); else finishBg();
-    };
-    tick();
-  }
-  function finishBg() {
-    if (accN < 3) { big('<b>The camera isn\'t sending pictures.</b><p>Tap Calibrate to try again.</p>'); mode = 'idle'; return; }
-    for (let i = 0; i < bg.length; i++) bg[i] = acc[i] / accN;
-    const noise = noiseN ? noiseSum / noiseN : 10;
-    thresh = Math.max(55, Math.min(140, 40 + noise * 4));
-    haveBg = true;
-    let n = 4;
-    const tick = () => {
-      big('<b>Now stand in the middle</b><i>' + n + '</i><p>Arms down, facing the phone</p>');
-      if (n === 1) { mode = 'pose'; acc = []; }
-      if (n-- > 0) calTimers.push(setTimeout(tick, 1000)); else finishPose();
-    };
-    tick();
-  }
-  function finishPose() {
-    const good = acc.filter(m => m.seen);
-    if (good.length < 3) {
-      mode = 'idle';
-      big('<b>I couldn\'t see you</b><p>Try more light, step back so your whole body is in view, then tap Calibrate.</p>');
-      return;
+  // ---------- body data streamed to the TV for fitness games ----------
+  let streamUntil = 0, lastSent = 0;
+  function silhouette() {
+    let out = [], cur = 0, run = 0;
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+      const i = y * W + x, v = (mask[i] | mask[i + 1] | mask[i + W] | mask[i + W + 1]) ? 1 : 0;
+      if (v === cur) run++; else { out.push(run.toString(36)); cur = v; run = 1; }
     }
-    const avg = k => good.reduce((a, m) => a + m[k], 0) / good.length;
-    base = { cx: avg('cx'), cy: avg('cy'), top: avg('top'), bot: avg('bot') };
-    base.h = Math.max(0.2, base.bot - base.top);
-    if (avg('frac') > 0.55) {
-      mode = 'idle';
-      big('<b>Too close or the room changed</b><p>Move the phone further away (or keep the background still), then Calibrate.</p>');
-      return;
-    }
-    st.lane = 0; st.duck = false; send({ t: 'lane', v: 0 }); send({ t: 'duck', v: false });
-    mode = 'live';
-    flashBig('<b>Ready! 🎮</b><p>Step sideways, jump and squat.<br>Raise both hands to press Join / Start.</p>');
-    calTimers.push(setTimeout(() => { if (mode === 'live') big(''); }, 2500));
+    out.push(run.toString(36));
+    return out.join('.');
   }
-
-  // ================= Frame loop + drawing =================
-  const view = $('view'), vctx = view.getContext('2d');
-  let lastProc = 0;
-  function loop(now) {
-    requestAnimationFrame(loop);
-    if (video.readyState < 2) return;
-    if (now - lastProc < 45) return;        // ~20 checks per second is plenty
-    lastProc = now;
-    const px = grab();
-    frames++;
-    if (now - fpsT > 1000) { $('fps').textContent = frames + ' fps'; frames = 0; fpsT = now; }
-
-    if (mode === 'bg') {
-      for (let i = 0, j = 0; i < N; i++, j += 4) { acc[i * 3] += px[j]; acc[i * 3 + 1] += px[j + 1]; acc[i * 3 + 2] += px[j + 2]; }
-      if (prevFrame) {
-        let d = 0; for (let j = 0; j < px.length; j += 16) d += Math.abs(px[j] - prevFrame[j]) + Math.abs(px[j + 1] - prevFrame[j + 1]) + Math.abs(px[j + 2] - prevFrame[j + 2]);
-        noiseSum += d / (px.length / 16); noiseN++;
+  function streamTick(now) {
+    if (now > streamUntil || now - lastSent < 100 || !haveBg) return;
+    lastSent = now;
+    const m = lastM, msg = { t: 'm', cal: base ? 1 : 0 };
+    if (m && m.seen) {
+      msg.seen = 1;
+      msg.tp = +m.top.toFixed(3); msg.bt = +m.bot.toFixed(3); msg.cx = +(swap ? m.cx : 1 - m.cx).toFixed(3); msg.cy = +m.cy.toFixed(3);
+      msg.w = +m.wid.toFixed(3); msg.fr = +m.frac.toFixed(3);
+      if (base) {
+        let dx = m.cx - base.cx; if (!swap) dx = -dx;
+        msg.dx = +dx.toFixed(3);
+        msg.rise = +((base.cy - m.cy) / base.h).toFixed(3);
+        msg.drop = +((m.top - base.top) / base.h).toFixed(3);
+        msg.lift = +((base.bot - m.bot) / base.h).toFixed(3);
+        msg.reach = +((base.top - m.top) / base.h).toFixed(3);
+        msg.wid = +(m.wid / base.wid).toFixed(3);
       }
-      prevFrame = px.slice ? px.slice() : new Uint8ClampedArray(px);
-      accN++;
-    } else if (haveBg) {
+      msg.s = silhouette();
+    } else msg.seen = 0;
+    send(msg);
+  }
+
+  // =====================================================================
+  // Guided calibration
+  // =====================================================================
+  let calT = [], acc = null, accN = 0, prevPx = null, motion = 0, stable = [], poseSince = 0;
+  const bigEl = $('big'), tipEl = $('tip');
+  function big(html) { bigEl.innerHTML = html || ''; bigEl.classList.toggle('on', !!html); }
+  let flashT = 0;
+  function flash(html) { big(html); clearTimeout(flashT); flashT = setTimeout(() => { if (cal === 'live') big(''); }, 900); }
+  function tip(t) { tipEl.textContent = t || ''; tipEl.classList.toggle('on', !!t); }
+
+  function calibrate() {
+    calT.forEach(clearTimeout); calT = [];
+    cal = 'bgwait'; base = null; haveBg = false; tip('');
+    let n = 3;
+    (function tick() {
+      big('<b>Step out of view</b><i>' + n + '</i><p>So I can learn the empty room</p>');
+      if (n-- > 0) calT.push(setTimeout(tick, 1000));
+      else { cal = 'bg'; acc = new Float32Array(N * 3); acc2.fill(0); accN = 0; motion = 0; prevPx = null; big('<b>Learning the room…</b><p>Stay out of view</p>'); }
+    })();
+  }
+  function bgFrame(px) {
+    for (let i = 0, j = 0; i < N; i++, j += 4) {
+      acc[i * 3] += px[j]; acc[i * 3 + 1] += px[j + 1]; acc[i * 3 + 2] += px[j + 2];
+      acc2[i * 3] += px[j] * px[j]; acc2[i * 3 + 1] += px[j + 1] * px[j + 1]; acc2[i * 3 + 2] += px[j + 2] * px[j + 2];
+    }
+    if (prevPx) { let d = 0; for (let j = 0; j < px.length; j += 16) d += Math.abs(px[j] - prevPx[j]) + Math.abs(px[j + 1] - prevPx[j + 1]) + Math.abs(px[j + 2] - prevPx[j + 2]); motion = Math.max(motion, d / (px.length / 16)); }
+    prevPx = px.slice ? px.slice() : new Uint8ClampedArray(px);
+    accN++;
+    if (accN >= 24) {
+      if (motion > 26) { big('<b>Something moved</b><p>Stay out of view – trying again…</p>'); cal = 'bgwait'; calT.push(setTimeout(calibrate, 1300)); return; }
+      for (let i = 0; i < bg.length; i++) bg[i] = acc[i] / accN;
+      let lum = 0; for (let i = 0; i < bg.length; i++) lum += bg[i]; lum /= bg.length;
+      thresh = Math.max(55, Math.min(130, 45 + motion * 3));
+      // each pixel gets its own threshold: steady pixels can be strict, flickery ones (screens, noise) lenient
+      for (let i = 0; i < N; i++) {
+        let sd = 0;
+        for (let c = 0; c < 3; c++) { const k = i * 3 + c, mu = bg[k], v = acc2[k] / accN - mu * mu; sd += Math.sqrt(Math.max(0, v)); }
+        thr[i] = Math.max(30, Math.min(130, 22 + sd * 5));
+      }
+      haveBg = true; prevMask.fill(0);
+      cal = 'pose'; stable = []; poseSince = 0; big('');
+      tip(lum < 40 ? 'It\'s quite dark – turn on a light for better tracking' : 'Now step into the middle and stand still');
+    }
+  }
+  function quickCentre() { if (!haveBg) return calibrate(); base = null; cal = 'pose'; stable = []; poseSince = 0; big(''); tip('Stand in the middle and hold still'); }
+
+  // live coaching until the standing pose is good and steady, then capture it
+  function poseFrame(m, now) {
+    let t = '';
+    if (!m.seen) t = 'Step into view';
+    else {
+      const h = m.bot - m.top;
+      if (m.top < 0.02) t = 'Your head is cut off – step back or tilt the phone up';
+      else if (h > 0.92) t = 'Step back a little';
+      else if (h < 0.3) t = 'Come a bit closer';
+      else if (m.cx < 0.35) t = swap ? 'Move a little to your left' : 'Move a little to your right';
+      else if (m.cx > 0.65) t = swap ? 'Move a little to your right' : 'Move a little to your left';
+      else if (m.frac > 0.55) t = 'The room changed – tap Calibrate again';
+    }
+    if (t) { tip(t); stable = []; poseSince = 0; return; }
+    stable.push({ t: now, m });
+    while (stable.length && now - stable[0].t > 1200) stable.shift();
+    const ys = stable.map(s => s.m.cy), xs = stable.map(s => s.m.cx);
+    const spread = Math.max(Math.max(...ys) - Math.min(...ys), Math.max(...xs) - Math.min(...xs));
+    if (spread > 0.03) { tip('Hold still…'); poseSince = 0; return; }
+    if (!poseSince) poseSince = now;
+    const prog = Math.min(1, (now - poseSince) / 1000);
+    tip('Hold still… ' + Math.round(prog * 100) + '%');
+    if (prog >= 1) {
+      const g = stable.map(s => s.m), avg = k => g.reduce((a, x) => a + x[k], 0) / g.length;
+      base = { cx: avg('cx'), cy: avg('cy'), top: avg('top'), bot: avg('bot'), wid: Math.max(0.05, avg('wid')) };
+      base.h = Math.max(0.2, base.bot - base.top);
+      cal = 'live'; tip(''); prev = null;
+      st.lane = 0; st.duck = false; send({ t: 'lane', v: 0 }); send({ t: 'duck', v: false });
+      vibrate([30, 30, 60]);
+      flash('<b>Ready! 🎮</b><p>Step sideways · jump · squat<br>Raise both hands = Join / Start</p>');
+      calT.push(setTimeout(() => { if (cal === 'live') big(''); }, 2200));
+      if (base.bot >= 0.97) calT.push(setTimeout(() => tip('Tip: jumps work best when your feet are in view'), 2300));
+      calT.push(setTimeout(() => tip(''), 6000));
+    }
+  }
+
+  // =====================================================================
+  // Per-frame loop: process every new camera frame as soon as it arrives
+  // =====================================================================
+  const view = $('view'), vctx = view.getContext('2d');
+  let frames = 0, fpsT = performance.now(), fps = 0;
+  function schedule() {
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => { onFrame(performance.now()); schedule(); });
+    else requestAnimationFrame(t => { onFrame(t); schedule(); });
+  }
+  let lastFrameTime = -1;
+  function onFrame(now) {
+    if (mode !== 'camera' || video.readyState < 2) return;
+    if (!video.requestVideoFrameCallback) { if (video.currentTime === lastFrameTime) return; lastFrameTime = video.currentTime; }
+    const px = grab();
+    frames++; if (now - fpsT > 1000) { fps = frames; frames = 0; fpsT = now; }
+    if (cal === 'bg') bgFrame(px);
+    else if (haveBg) {
       const m = measure(px);
-      if (mode === 'pose') acc.push(m);
-      else if (mode === 'live') { decide(m, now); adaptBackground(px); }
+      if (cal === 'pose') poseFrame(m, now);
+      else if (cal === 'live') { decide(m, now); adaptBackground(px); }
+      lastM = m;
+      streamTick(now);
     }
     draw();
   }
@@ -542,57 +720,132 @@ var MqttLite = (function () {
     const r = view.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
     if (view.width !== Math.round(r.width * dpr)) { view.width = Math.round(r.width * dpr); view.height = Math.round(r.height * dpr); }
     const cw = view.width, ch = view.height;
-    // fit the camera picture (cover), mirrored so it feels like a mirror
-    const vw = video.videoWidth || 4, vh = video.videoHeight || 3, sc = Math.max(cw / vw, ch / vh);
+    const vw = video.videoWidth || 4, vh = video.videoHeight || 3, sc = Math.min(cw / vw, ch / vh);
     const dw = vw * sc, dh = vh * sc, ox = (cw - dw) / 2, oy = (ch - dh) / 2;
-    vctx.save();
-    vctx.translate(cw, 0); vctx.scale(-1, 1);
+    vctx.fillStyle = '#000'; vctx.fillRect(0, 0, cw, ch);
+    vctx.save(); vctx.translate(cw, 0); vctx.scale(-1, 1);
     vctx.drawImage(video, cw - ox - dw, oy, dw, dh);
-    if (haveBg && mode !== 'bg') {
+    if (haveBg && cal !== 'bg') {
       const d = maskImg.data, col = st.duck ? [255, 62, 201] : st.jump ? [123, 255, 74] : [46, 242, 255];
-      for (let i = 0; i < N; i++) { const j = i * 4; d[j] = col[0]; d[j + 1] = col[1]; d[j + 2] = col[2]; d[j + 3] = mask[i] ? 110 : 0; }
+      for (let i = 0; i < N; i++) { const j = i * 4; d[j] = col[0]; d[j + 1] = col[1]; d[j + 2] = col[2]; d[j + 3] = mask[i] ? 120 : 0; }
       mctx.putImageData(maskImg, 0, 0);
       vctx.imageSmoothingEnabled = true;
       vctx.drawImage(maskCanvas, cw - ox - dw, oy, dw, dh);
     }
     vctx.restore();
-    // guide lines (in mirrored view coordinates)
-    if (base && mode === 'live') {
-      const s = SENS[sensIdx], X = x => ox + (1 - x) * dw, Y = y => oy + y * dh;
+    const X = x => ox + (1 - x) * dw, Y = y => oy + y * dh;
+    if (cal === 'pose') {     // guide box for where to stand
+      vctx.strokeStyle = poseSince ? '#7bff4a' : 'rgba(255,255,255,.7)'; vctx.lineWidth = 3 * dpr; vctx.setLineDash([10 * dpr, 8 * dpr]);
+      vctx.strokeRect(X(0.66), Y(0.06), X(0.34) - X(0.66), Y(0.96) - Y(0.06)); vctx.setLineDash([]);
+    }
+    if (base && cal === 'live') {
+      const s = SENS[sensIdx];
       vctx.lineWidth = 2 * dpr; vctx.setLineDash([8 * dpr, 8 * dpr]);
       vctx.strokeStyle = 'rgba(255,255,255,.35)';
       [base.cx - s.lane, base.cx + s.lane].forEach(x => { vctx.beginPath(); vctx.moveTo(X(x), oy); vctx.lineTo(X(x), oy + dh); vctx.stroke(); });
       vctx.strokeStyle = 'rgba(255,62,201,.7)';
       const dy = Y(base.top + s.duck * base.h); vctx.beginPath(); vctx.moveTo(ox, dy); vctx.lineTo(ox + dw, dy); vctx.stroke();
       vctx.setLineDash([]);
-      if (st.seen) {
-        vctx.fillStyle = '#fff';
-        vctx.beginPath(); vctx.arc(X(st.cx), Y(st.cy), 7 * dpr, 0, 6.283); vctx.fill();
-      }
-      if (st.hands > 0) {
-        vctx.strokeStyle = '#ffe23e'; vctx.lineWidth = 8 * dpr;
-        vctx.beginPath(); vctx.arc(cw / 2, ch / 2, 50 * dpr, -1.57, -1.57 + 6.283 * st.hands); vctx.stroke();
-      }
+      if (lastM && lastM.seen) { vctx.fillStyle = '#fff'; vctx.beginPath(); vctx.arc(X(lastM.cx), Y(lastM.cy), 7 * dpr, 0, 6.283); vctx.fill(); }
+      if (st.hands > 0) { vctx.strokeStyle = '#ffe23e'; vctx.lineWidth = 8 * dpr; vctx.beginPath(); vctx.arc(cw / 2, ch / 2, 50 * dpr, -1.57, -1.57 + 6.283 * st.hands); vctx.stroke(); }
+      if (!st.seen && !bigEl.classList.contains('on')) flash('<b>Can\'t see you</b><p>Step back into view</p>');
     }
+    vctx.fillStyle = 'rgba(6,7,26,.6)'; vctx.fillRect(cw - 74 * dpr, 6 * dpr, 68 * dpr, 22 * dpr);
+    vctx.fillStyle = '#9aa6d6'; vctx.font = 700 * 1 + ' ' + 12 * dpr + 'px system-ui'; vctx.textAlign = 'center';
+    vctx.fillText(fps + ' fps', cw - 40 * dpr, 22 * dpr);
     $('c-left').classList.toggle('on', st.lane === -1);
-    $('c-mid').classList.toggle('on', st.lane === 0 && mode === 'live' && st.seen);
+    $('c-mid').classList.toggle('on', st.lane === 0 && cal === 'live' && st.seen);
     $('c-right').classList.toggle('on', st.lane === 1);
     $('c-jump').classList.toggle('on', st.jump);
     $('c-duck').classList.toggle('on', st.duck);
-    if (mode === 'live' && !st.seen && !$('big').classList.contains('on')) flashBig('<b>Can\'t see you</b><p>Step back into view</p>');
   }
 
-  // ================= Buttons =================
   $('b-cal').onclick = calibrate;
+  $('b-quick').onclick = quickCentre;
   $('b-join').onclick = () => { send({ t: 'btn', b: 'a' }); vibrate(30); };
+  $('b-padgo').onclick = () => { send({ t: 'btn', b: 'a' }); vibrate(30); };
   $('b-more').onclick = () => { const m = $('more'); m.style.display = m.style.display === 'none' ? 'flex' : 'none'; };
-  $('b-swap').onclick = () => { swap = !swap; store.set('swap', swap); flashBig('<b>Left and right ' + (swap ? 'swapped' : 'normal') + '</b>'); };
-  const sensLabel = () => { $('b-sens').textContent = 'Sensitivity: ' + SENS[sensIdx].name; };
+  $('b-swap').onclick = () => { swap = !swap; store.set('swap', swap); flash('<b>Left and right ' + (swap ? 'swapped' : 'normal') + '</b>'); };
+  const sensLabel = () => { $('b-sens').textContent = 'Sens: ' + SENS[sensIdx].name; };
   sensLabel();
   $('b-sens').onclick = () => { sensIdx = (sensIdx + 1) % SENS.length; store.set('sens', sensIdx); sensLabel(); };
-  $('b-leave').onclick = () => { send({ t: 'btn', b: 'b' }); flashBig('<b>Left the game</b>'); };
 
-  window.GNPhone = { state: st, base: () => base, mode: () => mode, calibrate };
+  // =====================================================================
+  // Touch pad (Air Hockey)
+  // =====================================================================
+  const pad = $('pad'), pcv = $('padCanvas'), pctx = pcv.getContext('2d');
+  let padPos = null, padSent = 0, padTimer = null, padInfo = null;
+  function sizePad() { const r = pad.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1); pcv.width = r.width * d; pcv.height = r.height * d; drawPad(); }
+  window.addEventListener('resize', () => { if (mode === 'pad') sizePad(); });
+  function drawPad() {
+    pctx.clearRect(0, 0, pcv.width, pcv.height);
+    const W = pcv.width, H = pcv.height, my = getComputedStyle(document.documentElement).getPropertyValue('--me').trim() || '#2ef2ff';
+    // your half of the table, as seen on the TV: goal on one side, centre line on the other
+    if (padInfo) {
+      const gx = padInfo.side === 'left' ? 0 : W, cx = padInfo.side === 'left' ? W : 0, u = Math.min(W, H);
+      pctx.strokeStyle = 'rgba(255,255,255,.18)'; pctx.lineWidth = u * 0.012; pctx.setLineDash([u * 0.04, u * 0.03]);
+      pctx.beginPath(); pctx.moveTo(cx, 0); pctx.lineTo(cx, H); pctx.stroke(); pctx.setLineDash([]);
+      pctx.beginPath(); pctx.arc(cx, H / 2, u * 0.28, 0, 6.283); pctx.stroke();
+      pctx.fillStyle = my; pctx.globalAlpha = 0.85; pctx.fillRect(gx - u * 0.025, H / 2 - H * 0.16, u * 0.05, H * 0.32);
+      pctx.globalAlpha = 0.12; pctx.beginPath(); pctx.arc(gx, H / 2, H * 0.2, 0, 6.283); pctx.fill(); pctx.globalAlpha = 1;
+      pctx.fillStyle = 'rgba(255,255,255,.35)'; pctx.font = '800 ' + Math.round(u * 0.05) + 'px system-ui'; pctx.textAlign = 'center';
+      pctx.fillText('YOUR GOAL', padInfo.side === 'left' ? u * 0.17 : W - u * 0.17, H / 2 - H * 0.2);
+      if (padInfo.zone) pctx.fillText(padInfo.zone, W / 2, u * 0.08);
+    }
+    if (!padPos) return;
+    const x = padPos.x * pcv.width, y = padPos.y * pcv.height, r = Math.min(pcv.width, pcv.height) * 0.12;
+    const col = my;
+    pctx.fillStyle = col; pctx.globalAlpha = 0.25; pctx.beginPath(); pctx.arc(x, y, r * 1.8, 0, 6.283); pctx.fill();
+    pctx.globalAlpha = 1; pctx.beginPath(); pctx.arc(x, y, r, 0, 6.283); pctx.fill();
+    pctx.fillStyle = '#fff'; pctx.beginPath(); pctx.arc(x, y, r * 0.35, 0, 6.283); pctx.fill();
+  }
+  function padSend() {
+    padTimer = null;
+    if (!padPos) return;
+    padSent = performance.now();
+    send({ t: 'pad', x: +padPos.x.toFixed(3), y: +padPos.y.toFixed(3) });
+  }
+  function padMove(e) {
+    e.preventDefault();
+    const r = pad.getBoundingClientRect(), t = e.touches ? e.touches[0] : e;
+    if (!t) return;
+    padPos = { x: Math.max(0, Math.min(1, (t.clientX - r.left) / r.width)), y: Math.max(0, Math.min(1, (t.clientY - r.top) / r.height)) };
+    $('padHint').style.display = 'none';
+    drawPad();
+    const wait = 22 - (performance.now() - padSent);
+    if (wait <= 0) padSend(); else if (!padTimer) padTimer = setTimeout(padSend, wait);
+  }
+  ['touchstart', 'touchmove', 'mousedown', 'mousemove'].forEach(ev => pad.addEventListener(ev, e => { if (ev.startsWith('mouse') && !(e.buttons & 1)) return; padMove(e); }, { passive: false }));
+
+  // =====================================================================
+  // Quiz buttons
+  // =====================================================================
+  let quizLocked = false;
+  document.querySelectorAll('.ans').forEach(el => el.addEventListener('click', () => {
+    if (quizLocked) return;
+    quizLocked = true;
+    const i = +el.dataset.i;
+    document.querySelectorAll('.ans').forEach(a => { a.classList.toggle('pick', a === el); a.classList.toggle('dim', a !== el); });
+    send({ t: 'ans', i }); vibrate(30);
+  }));
+  function quizUpdate(m) {
+    if (m.q !== undefined) $('q-text').textContent = m.q;
+    if (m.opts) {
+      quizLocked = !!m.locked;
+      document.querySelectorAll('.ans').forEach((a, i) => {
+        a.className = 'ans a' + i; a.style.display = m.opts[i] === undefined ? 'none' : '';
+        a.querySelector('span').textContent = m.opts[i] || '';
+      });
+      $('q-res').textContent = '';
+    }
+    if (m.reveal !== undefined) {
+      document.querySelectorAll('.ans').forEach((a, i) => { a.classList.remove('dim'); a.classList.toggle('right', i === m.reveal); a.classList.toggle('wrong', i !== m.reveal); });
+      $('q-res').textContent = m.result || '';
+      quizLocked = true;
+    }
+  }
+
+  window.GNPhone = { state: st, base: () => base, cal: () => cal, mode: () => mode, calibrate, link: () => ({ direct, rtt }), m: () => lastM, gain: () => gain, thresh: () => thresh };
 })();
 </script>
 </body>
